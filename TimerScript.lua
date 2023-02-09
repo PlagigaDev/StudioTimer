@@ -3,7 +3,7 @@ local Selection = game:GetService("Selection")
 
 local toolbar = plugin:CreateToolbar("Studio Timer")
 
-local newScriptButton = toolbar:CreateButton("Show Timer", "Show the Timer UI", "rbxassetid://4458901886")
+local newScriptButton = toolbar:CreateButton("Show Timer", "Show the Timer UI", "rbxassetid://12432144503")
 
 local StudioTimerScreen = script:WaitForChild("StudioTimer")
 
@@ -42,9 +42,9 @@ local function UpdateTimer()
 		clock.hours = 0
 		clock.days += 1
 	end
-	if (clock.seconds == 0) then
-		plugin:SetSetting(game.GameId.. "clock", clock)
-	end
+	
+	plugin:SetSetting(game.GameId.. "clock", clock)
+
     Timer.Text = string.format(showTime, clock.days, clock.hours, clock.minutes, clock.seconds)
 end
 
