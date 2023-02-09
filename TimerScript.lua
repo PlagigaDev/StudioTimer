@@ -3,7 +3,7 @@ local Selection = game:GetService("Selection")
 
 local toolbar = plugin:CreateToolbar("Studio Timer")
 
-local newScriptButton = toolbar:CreateButton("Show Timer", "Show the Timer UI", "rbxassetid://12432144503")
+local newScriptButton = toolbar:CreateButton("Show Timer", "Show the Timer UI", "rbxassetid://12432317029")
 
 local StudioTimerScreen = script:WaitForChild("StudioTimer")
 
