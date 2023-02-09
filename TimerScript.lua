@@ -44,7 +44,7 @@ local function UpdateTimer()
 	if (clock.seconds == 0) then
 		plugin:SetSetting("clock", clock)
 	end
-    Timer.SetText(string.format(showTime, clock.days, clock.hours, clock.minutes, clock.seconds))
+    Timer.Text = string.format(showTime, clock.days, clock.hours, clock.minutes, clock.seconds)
 end
 
 newScriptButton.Click:Connect(ShowAndHideTimer)
