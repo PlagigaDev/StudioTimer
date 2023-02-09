@@ -21,8 +21,9 @@ local clock = plugin:GetSetting("clock") or {
 	["seconds"] = 0
 }
 
+local showTime = "%sd %sh %sm %ss"
+
 local function ShowAndHideTimer()
-	print("Hello")
 	StudioTimerScreen.Enabled = (not StudioTimerScreen.Enabled)
 end
 
@@ -43,6 +44,7 @@ local function UpdateTimer()
 	if (clock.seconds == 0) then
 		plugin:SetSetting("clock", clock)
 	end
+    Timer.SetText(string.format(showTime, clock.days, clock.hours, clock.minutes, clock.seconds))
 end
 
 newScriptButton.Click:Connect(ShowAndHideTimer)
