@@ -11,10 +11,11 @@ StudioTimerScreen.Parent = game:GetService("CoreGui")
 local TimerFrame = StudioTimerScreen:WaitForChild("TimerFrame")
 
 local Timer = TimerFrame:WaitForChild("Timer")
+local GameNameLabel = TimerFrame:WaitForChild("GameName")
 
-newScriptButton.ClickableWhenViewportHidden = true
+GameNameLabel.Text = game.Name
 
-local clock = plugin:GetSetting("clock") or {
+local clock = plugin:GetSetting(game.GameId.. "clock") or {
 	["days"] = 0,
 	["hours"] = 0,
 	["minutes"] = 0,
@@ -42,7 +43,7 @@ local function UpdateTimer()
 		clock.days += 1
 	end
 	if (clock.seconds == 0) then
-		plugin:SetSetting("clock", clock)
+		plugin:SetSetting(game.GameId.. "clock", clock)
 	end
     Timer.Text = string.format(showTime, clock.days, clock.hours, clock.minutes, clock.seconds)
 end
