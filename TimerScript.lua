@@ -13,7 +13,7 @@ local TimerFrame = StudioTimerScreen:WaitForChild("TimerFrame")
 local Timer = TimerFrame:WaitForChild("Timer")
 local GameNameLabel = TimerFrame:WaitForChild("GameName")
 
-GameNameLabel.Text = game.Name
+GameNameLabel.Text = game:GetService("MarketplaceService"):GetProductInfo(game.GameId).Name
 
 local clock = plugin:GetSetting(game.GameId.. "clock") or {
 	["days"] = 0,
