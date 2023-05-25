@@ -1,4 +1,6 @@
-local ChangeHistoryService = game:GetService("ChangeHistoryService")
+
+-- Legacy Code
+--[[local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local Selection = game:GetService("Selection")
 
 local toolbar = plugin:CreateToolbar("Studio Timer")
@@ -50,5 +52,4 @@ newScriptButton.Click:Connect(ShowAndHideTimer)
 while true do
 	task.wait(1)
 	UpdateTimer()
-end
-
+end]]--
