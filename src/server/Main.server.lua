@@ -40,6 +40,13 @@ local initGameNameState
 
 if isLocalPlace then
     initGameNameState = game.Name
+    if string.find(initGameNameState,".rbxlx") or string.find(initGameNameState,".rbxlx") then
+        local gameNameStateSplit = initGameNameState:split(".")
+        initGameNameState = ""
+        for i in 1, #gameNameStateSplit-1 do
+            initGameNameState += gameNameStateSplit[i]
+        end
+    end
 else
     local MarketplaceService = game:GetService("MarketplaceService")
     initGameNameState = MarketplaceService:GetProductInfo(game.PlaceId)["Name"]
