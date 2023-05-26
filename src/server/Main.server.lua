@@ -1,5 +1,5 @@
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local Roact = require(script.Parent:WaitForChild("Roact"))
 
@@ -9,6 +9,8 @@ local pluginButton = toolbar:CreateButton(
 "Studio Timer", --Text that will appear below button
 "Show how long you have been working on the current Game", --Text that will appear if you hover your mouse on button
 "rbxassetid://12432317029") --Button icon
+
+pluginButton.ClickableWhenViewportHidden = true
 
 local info = DockWidgetPluginGuiInfo.new(
 	Enum.InitialDockState.Top, --From what side gui appears
@@ -25,14 +27,18 @@ local widget = plugin:CreateDockWidgetPluginGui(
 info --dock widget info
 )
 
-local SAVE_INTERVALL = 5
+local SAVE_INTERVALL = 15
 
-local currentSessionString = "Current Session"
-local totalTimeString = "Total Time"
+local showTimeTypes = {
+    CURRENT_SESSION = "Current Session",
+    TOTAL_GAME_TIME = "Total Game Time",
+    TOTAL_TIME = "Total Time"
+}
+
 
 local theme = settings():GetService("Studio").Theme
 
-local isOpen = false
+local isOpen = plugin:GetSetting("on") or false
 
 local isLocalPlace = game.GameId == 0
 
@@ -42,35 +48,28 @@ if isLocalPlace then
     initGameNameState = game.Name
     if string.find(initGameNameState,".rbxlx") or string.find(initGameNameState,".rbxlx") then
         local gameNameStateSplit = initGameNameState:split(".")
-        initGameNameState = ""
-        for i in 1, #gameNameStateSplit-1 do
-            initGameNameState += gameNameStateSplit[i]
-        end
+        table.remove(gameNameStateSplit,#gameNameStateSplit)
+        initGameNameState = table.concat(gameNameStateSplit)
     end
 else
-    local MarketplaceService = game:GetService("MarketplaceService")
     initGameNameState = MarketplaceService:GetProductInfo(game.PlaceId)["Name"]
 end
 
 
-local timeSave 
-if isLocalPlace then
-    timeSave = plugin:GetSetting("local".. initGameNameState.. "clock") or 0
-else
-    timeSave = plugin:GetSetting(game.GameId.. "clock") or 0
-end
+local totalGameTimePassed = plugin:GetSetting(game.GameId.. "clock") or 0
+local totalTimePassed = plugin:GetSetting("totalTime") or 0
 
-local totalTimePassed
+if isLocalPlace then
+    totalGameTimePassed = plugin:GetSetting("local".. initGameNameState.. "clock") or 0   
+end
 
 local hasSaved = false
-
 -- convert legacy save into new
-if typeof(timeSave) == "table" then
-    totalTimePassed = (((timeSave.days * 24 + timeSave.hours) * 60 + timeSave.minutes) * 60 + timeSave.seconds)
-else
-    totalTimePassed = timeSave
+if typeof(totalGameTimePassed) == "table" then
+    totalGameTimePassed = (((totalGameTimePassed.days * 24 + totalGameTimePassed.hours) * 60 + totalGameTimePassed.minutes) * 60 + totalGameTimePassed.seconds)   
 end
 
+local showTimeTypeSave = plugin:GetSetting("showTimeType") or showTimeTypes.TOTAL_GAME_TIME
 
 local Clock = Roact.Component:extend("Clock")
 
@@ -81,8 +80,7 @@ function Clock:init()
         currentMinutes = 0,
         currentHours = 0,
         currentDays = 0,
-        showTotalTime = true,
-        showTimeText = totalTimeString,
+        showTimeType = showTimeTypeSave,
         gameName = initGameNameState
     })
 end
@@ -135,7 +133,18 @@ function changeTimeButton(clock, currentTimeDisplay: string)
         BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainButton),
         Text = "Displaying: ".. currentTimeDisplay,
         [Roact.Event.MouseButton1Click] = function()
-            clock:setState({showTotalTime = not clock.state.showTotalTime})
+            local showTimeType = clock.state.showTimeType
+            local newTimeType
+
+            if showTimeType == showTimeTypes.CURRENT_SESSION then
+                newTimeType = showTimeTypes.TOTAL_GAME_TIME
+            elseif showTimeType == showTimeTypes.TOTAL_GAME_TIME then
+                newTimeType = showTimeTypes.TOTAL_TIME
+            else
+                newTimeType = showTimeTypes.CURRENT_SESSION
+            end
+            plugin:SetSetting("showTimeType", newTimeType)
+            clock:setState({showTimeType = newTimeType})
         end
     }, {
         UICorner = Roact.createElement("UICorner", {
@@ -152,16 +161,17 @@ function Clock:render()
     }, {
         TimeLabel = timeLabel({["days"] = state.currentDays, ["hours"] = state.currentHours, ["minutes"] = state.currentMinutes, ["seconds"] = state.currentSeconds}),
         GameName = gameNameLabel(self.state.gameName),
-        ChangeTimeButton = changeTimeButton(self, self.state.showTimeText)
+        ChangeTimeButton = changeTimeButton(self, self.state.showTimeType)
     })
 end
 
 local function save(totalSeconds: number) 
     if not isLocalPlace then
-        plugin:SetSetting(game.GameId.. "clock", totalSeconds)
+        plugin:SetSetting(game.GameId.. "clock", totalSeconds + totalGameTimePassed)
     else
-        plugin:SetSetting("local".. initGameNameState.. "clock", totalSeconds)
+        plugin:SetSetting("local".. initGameNameState.. "clock", totalSeconds + totalGameTimePassed)
     end
+    plugin:SetSetting("totalTime", totalSeconds + totalTimePassed)
 end
 
 local function trySave(totalSeconds: number)
@@ -178,15 +188,16 @@ end
 function Clock:didMount()
     RunService.Heartbeat:Connect(function(dt)
         local startTime = self.state.startTime
-        local  showTotalTime = self.state.showTotalTime
+        local showTimeType = self.state.showTimeType
         local totalSeconds = math.floor(os.clock() - startTime)
-        local timeString = currentSessionString
+        local timeString = showTimeType
 
-        trySave(totalSeconds + totalTimePassed)
+        trySave(totalSeconds)
 
-        if showTotalTime then
+        if showTimeType == showTimeTypes.TOTAL_GAME_TIME then
+            totalSeconds += totalGameTimePassed
+        elseif showTimeType == showTimeTypes.TOTAL_TIME then
             totalSeconds += totalTimePassed
-            timeString = totalTimeString
         end
 
         local totalMinutes = math.floor(totalSeconds / 60)
@@ -198,8 +209,7 @@ function Clock:didMount()
                 currentSeconds = totalSeconds % 60,
                 currentMinutes = totalMinutes % 60,
                 currentHours = totalHours % 24,
-                currentDays = totalDays,
-                showTimeText = timeString
+                currentDays = totalDays
             }
         end)
     end)
@@ -211,8 +221,14 @@ theme.Changed:Connect(function(property)
     Roact.update(handle, Clock)
 end)
 
+if isOpen then
+    widget.Enabled = isOpen
+	pluginButton:SetActive(isOpen)
+end
+
 pluginButton.Click:Connect(function()
-	local isOn = not widget.Enabled
-    widget.Enabled = isOn
-	pluginButton:SetActive(isOn)
+	isOpen = not widget.Enabled
+    plugin:SetSetting("on", isOpen)
+    widget.Enabled = isOpen
+	pluginButton:SetActive(isOpen)
 end)
