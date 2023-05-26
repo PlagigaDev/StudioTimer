@@ -1,4 +1,4 @@
-local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
 local Roact = require(script.Parent:WaitForChild("Roact"))
@@ -41,8 +41,10 @@ local initGameNameState
 if isLocalPlace then
     initGameNameState = game.Name
 else
-    initGameNameState = game:GetService("MarketplaceService"):GetProductInfo(game.GameId,Enum.InfoType.Product)
+    local MarketplaceService = game:GetService("MarketplaceService")
+    initGameNameState = MarketplaceService:GetProductInfo(game.PlaceId)["Name"]
 end
+
 
 local timeSave 
 if isLocalPlace then
@@ -56,11 +58,12 @@ local totalTimePassed
 local hasSaved = false
 
 -- convert legacy save into new
-if typeof(timeSave) == table then
+if typeof(timeSave) == "table" then
     totalTimePassed = (((timeSave.days * 24 + timeSave.hours) * 60 + timeSave.minutes) * 60 + timeSave.seconds)
 else
     totalTimePassed = timeSave
 end
+
 
 local Clock = Roact.Component:extend("Clock")
 
@@ -148,7 +151,7 @@ end
 
 local function save(totalSeconds: number) 
     if not isLocalPlace then
-        plugin:SetSetting(game.GameIdId.. "clock", totalSeconds)
+        plugin:SetSetting(game.GameId.. "clock", totalSeconds)
     else
         plugin:SetSetting("local".. initGameNameState.. "clock", totalSeconds)
     end
