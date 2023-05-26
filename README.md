@@ -15,3 +15,5 @@ rojo serve
 ```
 
 For more help, check out [the Rojo documentation](https://rojo.space/docs).
+
+This is a Timer Plugin for Roblox Studio that Traks how much time you spent working currently, on the current game in total or how much time you spent in general inside of Roblox Studio
