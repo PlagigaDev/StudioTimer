@@ -3,7 +3,7 @@ local RunService = game:GetService("RunService")
 
 local Roact = require(script.Parent:WaitForChild("Roact"))
 
-local toolbar = plugin:CreateToolbar("Studio Timer 2")
+local toolbar = plugin:CreateToolbar("Studio Timer")
 
 local pluginButton = toolbar:CreateButton(
 "Studio Timer", --Text that will appear below button
@@ -11,13 +11,13 @@ local pluginButton = toolbar:CreateButton(
 "rbxassetid://12432317029") --Button icon
 
 local info = DockWidgetPluginGuiInfo.new(
-	Enum.InitialDockState.Right, --From what side gui appears
+	Enum.InitialDockState.Top, --From what side gui appears
 	false, --Widget will be initially enabled
 	false, --Don't overdrive previouse enabled state
-	200, --default weight
-	300, --default height
+	400, --default weight
+	200, --default height
 	150, --minimum weight (optional)
-	150 --minimum height (optional)
+	75 --minimum height (optional)
 )
 
 local widget = plugin:CreateDockWidgetPluginGui(
@@ -25,7 +25,10 @@ local widget = plugin:CreateDockWidgetPluginGui(
 info --dock widget info
 )
 
-local PluginId = "12432477060"
+local SAVE_INTERVALL = 5
+
+local currentSessionString = "Current Session"
+local totalTimeString = "Total Time"
 
 local theme = settings():GetService("Studio").Theme
 
@@ -41,13 +44,20 @@ else
     initGameNameState = game:GetService("MarketplaceService"):GetProductInfo(game.GameId,Enum.InfoType.Product)
 end
 
-local timeSave = plugin:GetSetting(game.GameId.. "clock")
+local timeSave 
+if isLocalPlace then
+    timeSave = plugin:GetSetting("local".. initGameNameState.. "clock") or 0
+else
+    timeSave = plugin:GetSetting(game.GameId.. "clock") or 0
+end
 
 local totalTimePassed
 
+local hasSaved = false
+
 -- convert legacy save into new
-if timeSave["days"] ~= nil then
-    timePassed = (((timeSave.days * 24 + timeSave.hours) * 60 + timeSave.minutes) * 60 + timeSave.seconds)
+if typeof(timeSave) == table then
+    totalTimePassed = (((timeSave.days * 24 + timeSave.hours) * 60 + timeSave.minutes) * 60 + timeSave.seconds)
 else
     totalTimePassed = timeSave
 end
@@ -55,26 +65,26 @@ end
 local Clock = Roact.Component:extend("Clock")
 
 function Clock:init()
-    -- In init, we can use setState to set up our initial component state.
     self:setState({
         startTime = os.clock(),
-        currentTime = 0,
-        currentDays = 0,
-        currentHours = 0,
-        currentMinutes = 0,
         currentSeconds = 0,
+        currentMinutes = 0,
+        currentHours = 0,
+        currentDays = 0,
+        showTotalTime = true,
+        showTimeText = totalTimeString,
         gameName = initGameNameState
     })
 end
 
-function timeLabel(xScale: number, time: number)
+function timeLabel(times: {number})
     return Roact.createElement("TextLabel", {
-        Size = UDim2.new(.25, 0, .5, 0),
-        Position = UDim2.new(xScale,0,.5,0),
-        AnchorPoint = Vector2.new(0,.5),
+        Size = UDim2.new(1, 0, .5, 0),
+        Position = UDim2.new(0,0,1,0),
+        AnchorPoint = Vector2.new(0,1),
         TextXAlignment = Enum.TextXAlignment.Center,
         TextScaled = true,
-        Text = "".. time,
+        Text = string.format("%02d:%02d:%02d:%02d",times.days, times.hours, times.minutes, times.seconds),
         BorderSizePixel = 0,
         TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
         BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground)
@@ -83,70 +93,108 @@ function timeLabel(xScale: number, time: number)
     })
 end
 
-function TimeFrame(state)
+function TimeFrame()
     return Roact.createElement("Frame",{
         AnchorPoint = Vector2.new(.5,.5),
         Size = UDim2.new(.5,0,.5,0),
         Position = UDim2.new(.5,0,.75,0),
         BackgroundTransparency = 1
     }, {
-        DayLabel = timeLabel(.0, state.currentDays),
-        HourLabel = timeLabel(.25, state.currentHours),
-        MinuteLabel = timeLabel(.5, state.currentMinutes),
-        SecondLabel = timeLabel(.75, state.currentSeconds),
+        
     })
 end
 
--- This render function is almost completely unchanged from the first example.
-function Clock:render()
-    -- As a convention, we'll pull currentTime out of state right away.
-    local currentTime = self.state.currentTime
+function gameNameLabel(gameName: string)
+    return Roact.createElement("TextLabel",{
+        TextScaled = true,
+        TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
+        BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground),
+        Text = "Game: ".. gameName,
+        Size = UDim2.new(.5,0,.5,0),
+        BorderSizePixel = 0
+    })
+end
 
-    return Roact.createElement("Frame", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground)
+function changeTimeButton(clock, currentTimeDisplay: string)
+    return Roact.createElement("TextButton",{
+        Size = UDim2.new(.25,0,.25,0),
+        Position = UDim2.new(.99,0,.01,0),
+        AnchorPoint = Vector2.new(1,0),
+        TextScaled = true,
+        TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
+        BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainButton),
+        Text = "Displaying: ".. currentTimeDisplay,
+        [Roact.Event.MouseButton1Click] = function()
+            clock:setState({showTotalTime = not clock.state.showTotalTime})
+        end
     }, {
-        TimeFrame = TimeFrame(self.state),
-        GameName = Roact.createElement("TextLabel",{
-            TextScaled = true,
-            TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
-            BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground),
-            Text = self.state.gameName
+        UICorner = Roact.createElement("UICorner", {
+            CornerRadius = UDim.new(0,8)
         })
     })
 end
 
--- Set up our loop in didMount, so that it starts running when our
--- component is created.
-function Clock:didMount()
-    
-    self.showTotalTime = true
-    
-    -- We don't want to block the main thread, so we spawn a new one!
-    task.spawn(function()
-        RunService.Heartbeat:Connect(function(dt)
-            if not isLocalPlace then
-                if self.showTotalTime then
-                    
-                end 
-            end
-            local seconds = math.floor(os.clock() - self.state.startTime)
-            if seconds % 15 == 0 then
-                plugin:SetSetting()
-            end
-            
-            self:setState(function(state)
-                return {
-                    currentTime = math.floor(os.clock() - state.startTime)
-                }
-            end)
-        end)
-            
+function Clock:render()
+    local state = self.state
+    return Roact.createElement("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground)
+    }, {
+        TimeLabel = timeLabel({["days"] = state.currentDays, ["hours"] = state.currentHours, ["minutes"] = state.currentMinutes, ["seconds"] = state.currentSeconds}),
+        GameName = gameNameLabel(self.state.gameName),
+        ChangeTimeButton = changeTimeButton(self, self.state.showTimeText)
+    })
+end
 
+local function save(totalSeconds: number) 
+    if not isLocalPlace then
+        plugin:SetSetting(game.GameIdId.. "clock", totalSeconds)
+    else
+        plugin:SetSetting("local".. initGameNameState.. "clock", totalSeconds)
+    end
+end
+
+local function trySave(totalSeconds: number)
+    if totalSeconds % SAVE_INTERVALL == 0 then
+        if not hasSaved then
+            hasSaved = true
+            save(totalSeconds)
+        end
+   else
+       hasSaved = false
+   end
+end
+
+function Clock:didMount()
+    RunService.Heartbeat:Connect(function(dt)
+        local startTime = self.state.startTime
+        local  showTotalTime = self.state.showTotalTime
+        local totalSeconds = math.floor(os.clock() - startTime)
+        local timeString = currentSessionString
+
+        trySave(totalSeconds + totalTimePassed)
+
+        if showTotalTime then
+            totalSeconds += totalTimePassed
+            timeString = totalTimeString
+        end
+
+        local totalMinutes = math.floor(totalSeconds / 60)
+        local totalHours = math.floor(totalMinutes / 60)
+        local totalDays = math.floor(totalHours / 24)
+        
+        self:setState(function(state)
+            return {
+                currentSeconds = totalSeconds % 60,
+                currentMinutes = totalMinutes % 60,
+                currentHours = totalHours % 24,
+                currentDays = totalDays,
+                showTimeText = timeString
+            }
+        end)
     end)
 end
 
--- Create our UI, which now runs on its own!
 local handle = Roact.mount(Roact.createElement(Clock), widget, "Clock UI")
 
 theme.Changed:Connect(function(property)
