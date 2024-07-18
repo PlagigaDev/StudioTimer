@@ -1,5 +1,6 @@
 local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 
 local Roact = require(script.Parent:WaitForChild("Roact"))
 
@@ -35,6 +36,16 @@ local showTimeTypes = {
     TOTAL_TIME = "Total Time"
 }
 
+local isFocused = false
+
+UserInputService.WindowFocused:Connect(function()
+    isFocused = true
+end)
+
+UserInputService.WindowFocusReleased:Connect(function()
+    isFocused = false
+end)
+
 
 local theme = settings():GetService("Studio").Theme
 
@@ -46,7 +57,7 @@ local initGameNameState
 
 if isLocalPlace then
     initGameNameState = game.Name
-    if string.find(initGameNameState,".rbxlx") or string.find(initGameNameState,".rbxlx") then
+    if string.find(initGameNameState,".rbxlx") or string.find(initGameNameState,".rbxl") then
         local gameNameStateSplit = initGameNameState:split(".")
         table.remove(gameNameStateSplit,#gameNameStateSplit)
         initGameNameState = table.concat(gameNameStateSplit)
@@ -60,8 +71,10 @@ local totalGameTimePassed = plugin:GetSetting(game.GameId.. "clock") or 0
 local totalTimePassed = plugin:GetSetting("totalTime") or 0
 
 if isLocalPlace then
-    totalGameTimePassed = plugin:GetSetting("local".. initGameNameState.. "clock") or 0   
+    totalGameTimePassed = plugin:GetSetting("local".. initGameNameState.. "clock") or 0
 end
+
+local onIsFocusedSave = plugin:GetSetting("onIsFocused") or false
 
 local hasSaved = false
 -- convert legacy save into new
@@ -81,7 +94,30 @@ function Clock:init()
         currentHours = 0,
         currentDays = 0,
         showTimeType = showTimeTypeSave,
-        gameName = initGameNameState
+        gameName = initGameNameState,
+        onIsFocused = onIsFocusedSave,
+        skipTime = 0 --This might not be the best solution but it's my solution
+    })
+end
+
+function focusedButton(clock: Roact.Component, focus: boolean): Roact.Element
+    return Roact.createElement("TextButton",{
+        Size = UDim2.new(.1,0,.25,0),
+        Position = UDim2.new(.99,0,.99,0),
+        AnchorPoint = Vector2.new(1,1),
+        TextScaled = true,
+        TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
+        BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainButton),
+        Text = focus and "On Focus" or "Always",
+        [Roact.Event.MouseButton1Click] = function()
+            focus = not focus
+            plugin:SetSetting("onIsFocused", focus)
+            clock:setState({onIsFocused = focus})
+        end
+    }, {
+        UICorner = Roact.createElement("UICorner", {
+            CornerRadius = UDim.new(0,8)
+        })
     })
 end
 
@@ -98,17 +134,6 @@ function timeLabel(times: {number})
         BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground)
     }, {
         UICorner = Roact.createElement("UICorner",{})
-    })
-end
-
-function TimeFrame()
-    return Roact.createElement("Frame",{
-        AnchorPoint = Vector2.new(.5,.5),
-        Size = UDim2.new(.5,0,.5,0),
-        Position = UDim2.new(.5,0,.75,0),
-        BackgroundTransparency = 1
-    }, {
-        
     })
 end
 
@@ -161,7 +186,8 @@ function Clock:render()
     }, {
         TimeLabel = timeLabel({["days"] = state.currentDays, ["hours"] = state.currentHours, ["minutes"] = state.currentMinutes, ["seconds"] = state.currentSeconds}),
         GameName = gameNameLabel(self.state.gameName),
-        ChangeTimeButton = changeTimeButton(self, self.state.showTimeType)
+        ChangeTimeButton = changeTimeButton(self, self.state.showTimeType),
+        FocusedButton = focusedButton(self, self.state.onIsFocused)
     })
 end
 
@@ -180,44 +206,54 @@ local function trySave(totalSeconds: number)
             hasSaved = true
             save(totalSeconds)
         end
-   else
-       hasSaved = false
-   end
+    else
+        hasSaved = false
+    end
+end
+
+function calcTime(self)
+    local startTime = self.state.startTime
+    local showTimeType = self.state.showTimeType
+    local totalSeconds = os.clock() - startTime
+    
+    
+    totalSeconds -= math.floor(self.state.skipTime)
+    totalSeconds = math.floor(totalSeconds)
+    trySave(totalSeconds)
+    
+    if showTimeType == showTimeTypes.TOTAL_GAME_TIME then
+        totalSeconds += totalGameTimePassed
+    elseif showTimeType == showTimeTypes.TOTAL_TIME then
+        totalSeconds += totalTimePassed
+    end
+    local totalMinutes = math.floor(totalSeconds / 60)
+    local totalHours = math.floor(totalMinutes / 60)
+    local totalDays = math.floor(totalHours / 24)
+        
+    self:setState(function(_state)
+        return {
+            currentSeconds = totalSeconds % 60,
+            currentMinutes = totalMinutes % 60,
+            currentHours = totalHours % 24,
+            currentDays = totalDays
+        }
+    end)
 end
 
 function Clock:didMount()
+    calcTime(self)
     RunService.Heartbeat:Connect(function(dt)
-        local startTime = self.state.startTime
-        local showTimeType = self.state.showTimeType
-        local totalSeconds = math.floor(os.clock() - startTime)
-        local timeString = showTimeType
-
-        trySave(totalSeconds)
-
-        if showTimeType == showTimeTypes.TOTAL_GAME_TIME then
-            totalSeconds += totalGameTimePassed
-        elseif showTimeType == showTimeTypes.TOTAL_TIME then
-            totalSeconds += totalTimePassed
+        if self.state.onIsFocused and not isFocused then
+            self:setState({skipTime = self.state.skipTime + dt})
+            return
         end
-
-        local totalMinutes = math.floor(totalSeconds / 60)
-        local totalHours = math.floor(totalMinutes / 60)
-        local totalDays = math.floor(totalHours / 24)
-        
-        self:setState(function(state)
-            return {
-                currentSeconds = totalSeconds % 60,
-                currentMinutes = totalMinutes % 60,
-                currentHours = totalHours % 24,
-                currentDays = totalDays
-            }
-        end)
+        calcTime(self)
     end)
 end
 
 local handle = Roact.mount(Roact.createElement(Clock), widget, "Clock UI")
 
-theme.Changed:Connect(function(property)
+theme.Changed:Connect(function(_property)
     Roact.update(handle, Clock)
 end)
 
